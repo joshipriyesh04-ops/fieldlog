@@ -1,0 +1,527 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#1B2A33">
+<title>Field Log</title>
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon-192.png">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,700;12..96,800&family=IBM+Plex+Mono:wght@400;500;600&family=Public+Sans:wght@400;500;600&display=swap">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  :root{
+    --paper:#F6F7F1; --grid:rgba(27,42,51,.07); --ink:#1B2A33;
+    --soft:rgba(27,42,51,.55); --faint:rgba(27,42,51,.18);
+    --marker:#FFD64D; --green:#2E7D5B; --red:#C44536; --blue:#2D5F8A;
+  }
+  *{box-sizing:border-box;margin:0}
+  body{
+    font-family:'Public Sans',system-ui,sans-serif; color:var(--ink);
+    background:
+      linear-gradient(var(--grid) 1px,transparent 1px),
+      linear-gradient(90deg,var(--grid) 1px,transparent 1px),
+      var(--paper);
+    background-size:28px 28px,28px 28px,auto;
+    max-width:560px;margin:0 auto;min-height:100vh;
+  }
+  header{padding:28px 20px 14px}
+  .eyebrow{font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--soft);margin-bottom:6px;display:flex;justify-content:space-between;align-items:center}
+  h1{font-family:'Bricolage Grotesque',sans-serif;font-weight:800;font-size:clamp(32px,8.5vw,50px);line-height:1.02}
+  h1 span{background:linear-gradient(transparent 58%,var(--marker) 58%);padding-right:6px}
+  .ribbon{display:flex;gap:16px;margin-top:12px;font-family:'IBM Plex Mono',monospace;font-size:12.5px;flex-wrap:wrap}
+  .ribbon b{font-weight:600}.ribbon .dim{color:var(--soft);font-weight:400}
+  main{padding:0 20px 100px}
+  h2{font-family:'Bricolage Grotesque',sans-serif;font-weight:700;font-size:21px;margin:18px 0 0}
+  .sub{font-size:12.5px;color:var(--soft);margin:3px 0 12px}
+  .row{display:flex;gap:8px;margin-bottom:8px}
+  input,textarea,select{
+    flex:1;min-width:0;border:1.5px solid var(--ink);border-radius:8px;
+    padding:11px 12px;font-size:15px;font-family:inherit;background:#fff;color:var(--ink);outline:none;
+  }
+  select{appearance:auto}
+  textarea{resize:vertical;min-height:72px}
+  .btn{background:var(--ink);color:#fff;border:none;border-radius:8px;padding:11px 16px;
+    font-family:'IBM Plex Mono',monospace;font-size:13px;font-weight:600;cursor:pointer;white-space:nowrap}
+  .card{background:#fff;border:1.5px solid var(--ink);border-radius:10px;box-shadow:3px 3px 0 rgba(27,42,51,.12)}
+  .item{display:flex;align-items:center;gap:12px;padding:12px 14px;border-top:1px solid var(--faint)}
+  .item:first-child{border-top:none}
+  .check{width:24px;height:24px;flex-shrink:0;border-radius:6px;border:1.5px solid var(--ink);background:transparent;cursor:pointer;font-size:14px;color:var(--ink)}
+  .check.on{background:var(--marker)}
+  .del{border:none;background:transparent;color:var(--faint);font-size:18px;cursor:pointer;padding:4px}
+  .empty{padding:26px 16px;text-align:center;color:var(--soft);font-size:14px;border:1.5px dashed var(--faint);border-radius:10px}
+  .mono{font-family:'IBM Plex Mono',monospace}
+  .statgrid{display:flex;gap:10px;margin-bottom:16px}
+  .stat{flex:1;padding:10px 12px}
+  .stat .k{font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--soft)}
+  .stat .v{font-family:'IBM Plex Mono',monospace;font-size:16px;font-weight:600;margin-top:2px}
+  .kindbtn{border:1.5px solid var(--ink);border-radius:8px;padding:0 14px;font-family:'IBM Plex Mono',monospace;font-size:13px;font-weight:600;cursor:pointer;color:#fff;white-space:nowrap}
+  .goal{padding:13px 14px;margin-bottom:10px}
+  .bar{height:10px;border-radius:6px;border:1.5px solid var(--ink);margin-top:10px;overflow:hidden;background:#fff}
+  .bar>div{height:100%;background:var(--ink);transition:width .24s ease}
+  .bar>div.hit{background:var(--green)}
+  .steps{display:flex;gap:8px;margin-top:10px}
+  .step{flex:1;border:1.5px solid var(--ink);border-radius:8px;padding:8px 0;font-family:'IBM Plex Mono',monospace;font-size:13px;font-weight:600;background:#fff;color:var(--ink);cursor:pointer}
+  .step.dark{background:var(--ink);color:#fff}
+  .note{padding:12px 14px;margin-bottom:10px}
+  .note .t{font-size:14.5px;white-space:pre-wrap}
+  .note .at{font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--soft);margin-top:8px}
+  .tag{font-family:'IBM Plex Mono',monospace;font-size:10.5px;padding:2px 8px;border-radius:999px;border:1px solid var(--ink);white-space:nowrap}
+  .tag.due{border-color:var(--blue);color:var(--blue)}
+  .tag.over{border-color:var(--red);color:var(--red);font-weight:600}
+  .tag.proj{border-color:var(--soft);color:var(--soft)}
+  /* leads */
+  .lead{padding:13px 14px;margin-bottom:10px}
+  .stagechip{font-family:'IBM Plex Mono',monospace;font-size:11px;font-weight:600;padding:4px 10px;border-radius:999px;border:1.5px solid var(--ink);cursor:pointer;background:#fff}
+  .stagechip.won{background:var(--green);color:#fff;border-color:var(--green)}
+  .stagechip.lost{background:var(--soft);color:#fff;border-color:var(--soft)}
+  .leadbtns{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap}
+  .mini{border:1.5px solid var(--ink);border-radius:8px;padding:6px 10px;font-family:'IBM Plex Mono',monospace;font-size:11.5px;font-weight:600;background:#fff;color:var(--ink);cursor:pointer}
+  .mini.green{background:var(--green);color:#fff;border-color:var(--green)}
+  .mini.grey{background:#fff;color:var(--soft);border-color:var(--soft)}
+  /* timeline */
+  .tl{position:relative;margin:10px 0 4px;padding:8px 0 0}
+  .tl-months{position:relative;height:16px;margin-bottom:6px}
+  .tl-months span{position:absolute;font-family:'IBM Plex Mono',monospace;font-size:9.5px;color:var(--soft);transform:translateX(-50%);text-transform:uppercase;letter-spacing:.05em}
+  .tl-row{position:relative;height:30px;margin-bottom:6px}
+  .tl-bar{position:absolute;top:3px;height:24px;border:1.5px solid var(--ink);border-radius:6px;background:var(--ink);color:#fff;
+    font-family:'IBM Plex Mono',monospace;font-size:10.5px;font-weight:600;display:flex;align-items:center;padding:0 8px;overflow:hidden;white-space:nowrap;min-width:24px}
+  .tl-bar.done{background:var(--green);border-color:var(--green)}
+  .tl-bar .pct{margin-left:auto;padding-left:6px;opacity:.8}
+  .tl-today{position:absolute;top:0;bottom:0;width:2px;background:var(--red);z-index:2}
+  .tl-wrap{overflow:hidden;padding:12px 14px}
+  /* nav */
+  nav{position:fixed;left:0;right:0;bottom:0;background:var(--ink);z-index:10}
+  .navin{display:flex;gap:4px;overflow-x:auto;padding:10px 12px calc(10px + env(safe-area-inset-bottom));max-width:560px;margin:0 auto;scrollbar-width:none}
+  .navin::-webkit-scrollbar{display:none}
+  nav button{background:transparent;color:rgba(255,255,255,.75);border:none;border-radius:999px;padding:8px 16px;flex-shrink:0;
+    font-family:'IBM Plex Mono',monospace;font-size:12.5px;font-weight:600;letter-spacing:.04em;cursor:pointer}
+  nav button.on{background:var(--marker);color:var(--ink)}
+  .hl{background:linear-gradient(transparent 55%,var(--marker) 55%)}
+  .pos{color:var(--green)} .neg{color:var(--red)}
+  button:focus-visible,input:focus-visible,textarea:focus-visible,select:focus-visible{outline:2px solid var(--ink);outline-offset:2px}
+  #login{padding:48px 24px;max-width:420px;margin:0 auto;display:none}
+  #login h1{margin-bottom:8px}
+  #login .sub{margin-bottom:24px}
+  .syncdot{font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.08em;text-transform:uppercase}
+  .syncdot.ok{color:var(--green)} .syncdot.off{color:var(--soft)} .syncdot.err{color:var(--red)}
+  .linkbtn{border:none;background:transparent;color:var(--soft);font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.08em;text-transform:uppercase;cursor:pointer;text-decoration:underline}
+</style>
+</head>
+<body>
+
+<!-- ============ LOGIN ============ -->
+<div id="login">
+  <h1><span>Field Log.</span></h1>
+  <div class="sub">Your private tracker. Sign in with your email — the same login on every device keeps everything in sync.</div>
+  <div style="display:flex;flex-direction:column;gap:8px">
+    <input id="email" type="email" placeholder="you@example.com" autocomplete="email">
+    <button class="btn" onclick="sendLink()">Send me a sign-in link</button>
+    <div id="loginmsg" class="sub" style="margin-top:8px"></div>
+  </div>
+</div>
+
+<!-- ============ APP ============ -->
+<div id="app" style="display:none">
+  <header>
+    <div class="eyebrow">
+      <span id="dateline"></span>
+      <span style="display:flex;gap:10px;align-items:center">
+        <span id="sync" class="syncdot off">offline</span>
+        <button class="linkbtn" onclick="signOut()">Sign out</button>
+      </span>
+    </div>
+    <h1><span id="dayname"></span></h1>
+    <div class="ribbon" id="ribbon"></div>
+  </header>
+  <main id="main"></main>
+  <nav><div class="navin" id="nav"></div></nav>
+</div>
+
+<script>
+"use strict";
+/* ================================================================
+   SETUP — paste your two Supabase values here (Settings → API)
+================================================================ */
+const SUPABASE_URL = "https://xqdaiqzavkibygxhdzeh.supabase.co";
+const SUPABASE_ANON_KEY = "sb_publishable_el6JDscuKWVcs2dXRReurw_mLhXMnyn";
+/* ============================================================== */
+
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+const KEY="fieldlog:v2";
+const EMPTY={tasks:[],money:[],goals:[],notes:[],leads:[],projects:[]};
+const STAGES=["New","Contacted","Proposal","Negotiation","Won","Lost"];
+let D=EMPTY, tab="today", user=null, pushTimer=null;
+
+const uid=()=>Math.random().toString(36).slice(2,9)+Date.now().toString(36);
+const today=()=>new Date().toISOString().slice(0,10);
+const month=()=>new Date().toISOString().slice(0,7);
+const inr=n=>"₹"+Math.abs(n).toLocaleString("en-IN",{maximumFractionDigits:0});
+const esc=s=>String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const fdate=d=>new Date(d+"T00:00:00").toLocaleDateString("en-IN",{day:"numeric",month:"short"});
+const setSync=(cls,txt)=>{const el=document.getElementById("sync");el.className="syncdot "+cls;el.textContent=txt;};
+
+/* ---------- auth ---------- */
+async function sendLink(){
+  const email=document.getElementById("email").value.trim();
+  const msg=document.getElementById("loginmsg");
+  if(!email){msg.textContent="Enter your email first.";return;}
+  msg.textContent="Sending…";
+  const {error}=await sb.auth.signInWithOtp({email,options:{emailRedirectTo:location.href.split("#")[0]}});
+  msg.textContent=error?("Couldn't send: "+error.message):"Check your inbox and tap the sign-in link. Then come back here.";
+}
+async function signOut(){await sb.auth.signOut();location.reload();}
+
+/* ---------- cloud sync (whole-state row, last write wins) ---------- */
+async function pull(){
+  try{
+    const {data,error}=await sb.from("fieldlog").select("data").eq("user_id",user.id).maybeSingle();
+    if(error)throw error;
+    if(data&&data.data){D=Object.assign({},EMPTY,data.data);}
+    else{
+      try{D=Object.assign({},EMPTY,JSON.parse(localStorage.getItem(KEY)||"{}"));}catch(e){D=EMPTY;}
+      await sb.from("fieldlog").upsert({user_id:user.id,data:D,updated_at:new Date().toISOString()});
+    }
+    localStorage.setItem(KEY,JSON.stringify(D));
+    setSync("ok","synced");
+  }catch(e){
+    try{D=Object.assign({},EMPTY,JSON.parse(localStorage.getItem(KEY)||"{}"));}catch(_){D=EMPTY;}
+    setSync("err","sync failed — using local copy");
+  }
+}
+function save(){
+  try{localStorage.setItem(KEY,JSON.stringify(D));}catch(e){}
+  setSync("off","saving…");
+  if(pushTimer)clearTimeout(pushTimer);
+  pushTimer=setTimeout(async()=>{
+    try{
+      const {error}=await sb.from("fieldlog").upsert({user_id:user.id,data:D,updated_at:new Date().toISOString()});
+      if(error)throw error;
+      setSync("ok","synced");
+    }catch(e){setSync("err","offline — will retry");setTimeout(save,15000);}
+  },600);
+}
+
+/* ---------- header / nav ---------- */
+function header(){
+  const now=new Date();
+  document.getElementById("dateline").textContent="Field Log · "+now.toLocaleDateString("en-IN",{day:"numeric",month:"long",year:"numeric"});
+  document.getElementById("dayname").textContent=now.toLocaleDateString("en-IN",{weekday:"long"})+".";
+  const vis=D.tasks.filter(t=>!t.done||t.doneOn===today());
+  const done=vis.filter(t=>t.done).length;
+  const net=D.money.filter(m=>m.date===today()).reduce((s,m)=>s+(m.kind==="in"?m.amt:-m.amt),0);
+  const openLeads=D.leads.filter(l=>l.stage!=="Won"&&l.stage!=="Lost").length;
+  const activeProj=D.projects.filter(p=>p.progress<100).length;
+  document.getElementById("ribbon").innerHTML=
+    `<span><b>${done}/${vis.length}</b> <span class="dim">tasks</span></span>`+
+    `<span class="${net>=0?"pos":"neg"}" style="font-weight:600">${net>=0?"+":"−"}${inr(net)} <span class="dim">today</span></span>`+
+    `<span><b>${openLeads}</b> <span class="dim">leads</span></span>`+
+    `<span><b>${activeProj}</b> <span class="dim">projects</span></span>`;
+}
+function navbar(){
+  const tabs=[["today","Today"],["leads","Leads"],["projects","Projects"],["money","Money"],["goals","Goals"],["notes","Notes"]];
+  document.getElementById("nav").innerHTML=tabs.map(([k,l])=>
+    `<button class="${tab===k?"on":""}" onclick="go('${k}')">${l}</button>`).join("");
+}
+function go(t){tab=t;render();}
+
+/* ================= TASKS (Today) ================= */
+function taskTags(t){
+  let h="";
+  if(t.due&&!t.done){
+    const over=t.due<today();
+    h+=`<span class="tag ${over?"over":"due"}">${over?"overdue · ":""}${fdate(t.due)}</span>`;
+  }
+  if(t.projectId){
+    const p=D.projects.find(p=>p.id===t.projectId);
+    if(p)h+=`<span class="tag proj">${esc(p.name)}</span>`;
+  }
+  return h?`<div style="display:flex;gap:6px;margin-top:4px;flex-wrap:wrap">${h}</div>`:"";
+}
+function viewToday(){
+  const vis=D.tasks.filter(t=>!t.done||t.doneOn===today())
+    .sort((a,b)=>(a.due||"9999")<(b.due||"9999")?-1:1);
+  const projOpts=D.projects.filter(p=>p.progress<100).map(p=>`<option value="${p.id}">${esc(p.name)}</option>`).join("");
+  let list=vis.length?`<div class="card">`+vis.map(t=>
+    `<div class="item">
+      <button class="check ${t.done?"on":""}" aria-label="toggle" onclick="tgl('${t.id}')">${t.done?"✓":""}</button>
+      <div style="flex:1;min-width:0">
+        <span style="font-size:15px;${t.done?"text-decoration:line-through;color:var(--soft)":""}">${esc(t.text)}</span>
+        ${taskTags(t)}
+      </div>
+      <button class="del" aria-label="delete" onclick="delT('${t.id}')">×</button>
+    </div>`).join("")+`</div>`
+  :`<div class="empty">A clean page. Add your first task above.</div>`;
+  return `<h2>Today's tasks</h2><div class="sub">Unfinished tasks carry over. Add a deadline or link a project — both optional.</div>
+  <div class="row"><input id="ti" placeholder="Add a task" onkeydown="if(event.key==='Enter')addT()"><button class="btn" onclick="addT()">Add</button></div>
+  <div class="row" style="margin-bottom:14px">
+    <input id="td" type="date" style="flex:1">
+    <select id="tp" style="flex:1.4"><option value="">No project</option>${projOpts}</select>
+  </div>${list}`;
+}
+function addT(){
+  const i=document.getElementById("ti"),v=i.value.trim();if(!v)return;
+  const due=document.getElementById("td").value||null;
+  const projectId=document.getElementById("tp").value||null;
+  D.tasks.unshift({id:uid(),text:v,done:false,doneOn:null,due,projectId});save();render();
+}
+function tgl(id){D.tasks=D.tasks.map(t=>t.id===id?{...t,done:!t.done,doneOn:!t.done?today():null}:t);save();render();}
+function delT(id){D.tasks=D.tasks.filter(t=>t.id!==id);save();render();}
+
+/* ================= LEADS ================= */
+function viewLeads(){
+  const open=D.leads.filter(l=>l.stage!=="Won"&&l.stage!=="Lost");
+  const pipeline=open.reduce((s,l)=>s+(l.value||0),0);
+  const won=D.leads.filter(l=>l.stage==="Won").reduce((s,l)=>s+(l.value||0),0);
+  const sorted=[...D.leads].sort((a,b)=>{
+    const ax=a.stage==="Won"||a.stage==="Lost", bx=b.stage==="Won"||b.stage==="Lost";
+    if(ax!==bx)return ax?1:-1;
+    return (a.follow||"9999")<(b.follow||"9999")?-1:1;
+  });
+  let list=sorted.length?sorted.map(l=>{
+    const closed=l.stage==="Won"||l.stage==="Lost";
+    const over=l.follow&&l.follow<today()&&!closed;
+    return `<div class="card lead">
+      <div style="display:flex;align-items:flex-start;gap:8px">
+        <div style="flex:1;min-width:0">
+          <div style="font-size:15px;font-weight:600">${esc(l.name)}</div>
+          ${l.org?`<div style="font-size:12.5px;color:var(--soft)">${esc(l.org)}</div>`:""}
+        </div>
+        ${l.value?`<div class="mono" style="font-size:13px;font-weight:600">${inr(l.value)}</div>`:""}
+        <button class="del" aria-label="delete" onclick="delL('${l.id}')">×</button>
+      </div>
+      <div class="leadbtns">
+        <button class="stagechip ${l.stage==="Won"?"won":l.stage==="Lost"?"lost":""}" onclick="nextStage('${l.id}')">${l.stage}${closed?"":" →"}</button>
+        ${!closed?`<button class="mini green" onclick="setStage('${l.id}','Won')">Won</button>
+        <button class="mini grey" onclick="setStage('${l.id}','Lost')">Lost</button>
+        <button class="mini" onclick="bumpFollow('${l.id}')">↻ +7d</button>`:""}
+        ${l.follow&&!closed?`<span class="tag ${over?"over":"due"}" style="align-self:center">${over?"follow up overdue · ":"follow up "}${fdate(l.follow)}</span>`:""}
+      </div>
+    </div>`;}).join("")
+  :`<div class="empty">No leads yet. Add the first one above.</div>`;
+  return `<h2>Leads</h2><div class="sub">Tap the stage chip to advance it. Open leads sort by next follow-up.</div>
+  <div class="statgrid">
+    <div class="card stat"><div class="k">Open</div><div class="v">${open.length}</div></div>
+    <div class="card stat"><div class="k">Pipeline</div><div class="v">${inr(pipeline)}</div></div>
+    <div class="card stat"><div class="k">Won</div><div class="v pos">${inr(won)}</div></div>
+  </div>
+  <div class="row"><input id="ln" placeholder="Lead name, e.g. Plant head — Siltara"></div>
+  <div class="row"><input id="lo" placeholder="Company / source (optional)"></div>
+  <div class="row" style="margin-bottom:14px">
+    <input id="lv" inputmode="numeric" placeholder="₹ value (optional)" class="mono">
+    <input id="lf" type="date" title="Next follow-up">
+    <button class="btn" onclick="addL()">Add</button>
+  </div>${list}`;
+}
+function addL(){
+  const n=document.getElementById("ln").value.trim();if(!n)return;
+  D.leads.unshift({id:uid(),name:n,org:document.getElementById("lo").value.trim(),
+    value:parseFloat(document.getElementById("lv").value)||0,
+    follow:document.getElementById("lf").value||null,stage:"New"});
+  save();render();
+}
+function nextStage(id){
+  D.leads=D.leads.map(l=>{
+    if(l.id!==id)return l;
+    const i=STAGES.indexOf(l.stage);
+    return {...l,stage:STAGES[Math.min(i+1,STAGES.length-2)]}; // cycles up to Negotiation; Won/Lost via buttons
+  });save();render();
+}
+function setStage(id,s){D.leads=D.leads.map(l=>l.id===id?{...l,stage:s}:l);save();render();}
+function bumpFollow(id){
+  D.leads=D.leads.map(l=>{
+    if(l.id!==id)return l;
+    const base=l.follow&&l.follow>today()?new Date(l.follow):new Date();
+    base.setDate(base.getDate()+7);
+    return {...l,follow:base.toISOString().slice(0,10)};
+  });save();render();
+}
+function delL(id){D.leads=D.leads.filter(l=>l.id!==id);save();render();}
+
+/* ================= PROJECTS + TIMELINE ================= */
+function timeline(){
+  const ps=D.projects.filter(p=>p.start&&p.end);
+  if(!ps.length)return "";
+  let min=ps.reduce((m,p)=>p.start<m?p.start:m,ps[0].start);
+  let max=ps.reduce((m,p)=>p.end>m?p.end:m,ps[0].end);
+  const t=today(); if(t<min)min=t; if(t>max)max=t;
+  const d0=new Date(min+"T00:00:00"), d1=new Date(max+"T00:00:00");
+  d0.setDate(1); d1.setMonth(d1.getMonth()+1,1);
+  const span=d1-d0;
+  const pos=d=>((new Date(d+"T00:00:00")-d0)/span*100);
+  // month ticks
+  let months="",mc=new Date(d0);
+  while(mc<d1){
+    months+=`<span style="left:${((mc-d0)/span*100)}%">${mc.toLocaleDateString("en-IN",{month:"short"})}</span>`;
+    mc.setMonth(mc.getMonth()+1);
+  }
+  const rows=ps.map(p=>{
+    const l=pos(p.start), w=Math.max(pos(p.end)-l,4);
+    return `<div class="tl-row"><div class="tl-bar ${p.progress>=100?"done":""}" style="left:${l}%;width:${w}%">${esc(p.name)}<span class="pct">${p.progress}%</span></div></div>`;
+  }).join("");
+  return `<div class="card tl-wrap"><div class="tl">
+    <div class="tl-months">${months}</div>
+    <div style="position:relative">${rows}<div class="tl-today" style="left:${pos(t)}%"></div></div>
+  </div></div>`;
+}
+function viewProjects(){
+  let cards=D.projects.length?D.projects.map(p=>{
+    const linked=D.tasks.filter(t=>t.projectId===p.id);
+    const tDone=linked.filter(t=>t.done).length;
+    const hit=p.progress>=100;
+    return `<div class="card goal">
+      <div style="display:flex;align-items:baseline;gap:8px">
+        <div style="flex:1;font-size:15px;font-weight:600">${hit?`<span class="hl">${esc(p.name)}</span>`:esc(p.name)}</div>
+        <div class="mono" style="font-size:12px;color:var(--soft)">${p.start?fdate(p.start):""}–${p.end?fdate(p.end):""}</div>
+        <button class="del" aria-label="delete" onclick="delP('${p.id}')">×</button>
+      </div>
+      ${linked.length?`<div style="font-size:12px;color:var(--soft);margin-top:3px">${tDone}/${linked.length} linked tasks done</div>`:""}
+      <div class="bar"><div class="${hit?"hit":""}" style="width:${p.progress}%"></div></div>
+      <div class="steps">
+        <button class="step" onclick="prog('${p.id}',-10)">−10%</button>
+        <button class="step dark" onclick="prog('${p.id}',10)">+10%</button>
+      </div>
+    </div>`;}).join("")
+  :`<div class="empty">No projects yet. Add one with a start and end date to see it on the timeline.</div>`;
+  return `<h2>Projects</h2><div class="sub">The red line on the timeline is today. Link tasks to projects from the Today tab.</div>
+  ${timeline()}
+  <div class="row" style="margin-top:14px"><input id="pn" placeholder="Project, e.g. FY26 books close"></div>
+  <div class="row" style="margin-bottom:14px">
+    <input id="ps" type="date" title="Start">
+    <input id="pe" type="date" title="End">
+    <button class="btn" onclick="addP()">Add</button>
+  </div>${cards}`;
+}
+function addP(){
+  const n=document.getElementById("pn").value.trim();
+  const s=document.getElementById("ps").value, e=document.getElementById("pe").value;
+  if(!n||!s||!e||e<s)return;
+  D.projects.push({id:uid(),name:n,start:s,end:e,progress:0});save();render();
+}
+function prog(id,d){D.projects=D.projects.map(p=>p.id===id?{...p,progress:Math.min(100,Math.max(0,p.progress+d))}:p);save();render();}
+function delP(id){
+  D.projects=D.projects.filter(p=>p.id!==id);
+  D.tasks=D.tasks.map(t=>t.projectId===id?{...t,projectId:null}:t);
+  save();render();
+}
+
+/* ================= MONEY ================= */
+let kind="out";
+function viewMoney(){
+  const rows=D.money.filter(m=>m.date.startsWith(month()));
+  const inS=rows.filter(m=>m.kind==="in").reduce((s,m)=>s+m.amt,0);
+  const outS=rows.filter(m=>m.kind==="out").reduce((s,m)=>s+m.amt,0);
+  const net=inS-outS;
+  const mn=new Date().toLocaleDateString("en-IN",{month:"long"});
+  let list=rows.length?`<div class="card">`+rows.slice(0,30).map(m=>
+    `<div class="item">
+      <div style="flex:1;min-width:0">
+        <div style="font-size:14.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(m.label)}</div>
+        <div class="mono" style="font-size:11px;color:var(--soft)">${fdate(m.date)}</div>
+      </div>
+      <div class="mono ${m.kind==="in"?"pos":"neg"}" style="font-size:14px;font-weight:600">${m.kind==="in"?"+":"−"}${inr(m.amt)}</div>
+      <button class="del" aria-label="delete" onclick="delM('${m.id}')">×</button>
+    </div>`).join("")+`</div>`
+  :`<div class="empty">No entries this month. Log the first one above.</div>`;
+  return `<h2>Money</h2><div class="sub">Running ledger for ${mn}.</div>
+  <div class="statgrid">
+    <div class="card stat"><div class="k">In</div><div class="v pos">${inr(inS)}</div></div>
+    <div class="card stat"><div class="k">Out</div><div class="v neg">${inr(outS)}</div></div>
+    <div class="card stat"><div class="k">Net</div><div class="v ${net>=0?"pos":"neg"}">${net<0?"−":""}${inr(net)}</div></div>
+  </div>
+  <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:14px">
+    <input id="ml" placeholder="What was it? e.g. Diesel top-up, client payment">
+    <div class="row" style="margin:0">
+      <input id="ma" inputmode="decimal" placeholder="₹ amount" class="mono" onkeydown="if(event.key==='Enter')addM()">
+      <button class="kindbtn" style="background:${kind==="in"?"var(--green)":"var(--red)"}" onclick="kind=kind==='out'?'in':'out';render()">${kind==="in"?"+ In":"− Out"}</button>
+      <button class="btn" onclick="addM()">Log</button>
+    </div>
+  </div>${list}`;
+}
+function addM(){
+  const l=document.getElementById("ml").value.trim(), a=parseFloat(document.getElementById("ma").value);
+  if(!l||!a||a<=0)return;
+  D.money.unshift({id:uid(),label:l,amt:a,kind,date:today()});save();render();
+}
+function delM(id){D.money=D.money.filter(m=>m.id!==id);save();render();}
+
+/* ================= GOALS ================= */
+function viewGoals(){
+  let list=D.goals.length?D.goals.map(g=>{
+    const pct=Math.round(g.cur/g.target*100), hit=g.cur>=g.target;
+    return `<div class="card goal">
+      <div style="display:flex;align-items:baseline;gap:8px">
+        <div style="flex:1;font-size:15px;font-weight:600">${hit?`<span class="hl">${esc(g.name)}</span>`:esc(g.name)}</div>
+        <div class="mono" style="font-size:13px;color:var(--soft)">${g.cur}/${g.target}</div>
+        <button class="del" aria-label="delete" onclick="delG('${g.id}')">×</button>
+      </div>
+      <div class="bar"><div class="${hit?"hit":""}" style="width:${Math.min(100,pct)}%"></div></div>
+      <div class="steps">
+        <button class="step" onclick="bump('${g.id}',-1)">−1</button>
+        <button class="step dark" onclick="bump('${g.id}',1)">+1</button>
+      </div>
+    </div>`;}).join("")
+  :`<div class="empty">No goals yet. Set one with a target count above.</div>`;
+  return `<h2>Goals</h2><div class="sub">Count progress toward a number — trips, posts, workouts, savings milestones.</div>
+  <div class="row" style="margin-bottom:14px">
+    <input id="gn" placeholder="Goal, e.g. 40 trips this month">
+    <input id="gt" inputmode="numeric" placeholder="Target" class="mono" style="flex:0 0 84px" onkeydown="if(event.key==='Enter')addG()">
+    <button class="btn" onclick="addG()">Add</button>
+  </div>${list}`;
+}
+function addG(){
+  const n=document.getElementById("gn").value.trim(), t=parseInt(document.getElementById("gt").value,10);
+  if(!n||!t||t<=0)return;
+  D.goals.push({id:uid(),name:n,target:t,cur:0});save();render();
+}
+function bump(id,d){D.goals=D.goals.map(g=>g.id===id?{...g,cur:Math.min(g.target,Math.max(0,g.cur+d))}:g);save();render();}
+function delG(id){D.goals=D.goals.filter(g=>g.id!==id);save();render();}
+
+/* ================= NOTES ================= */
+function viewNotes(){
+  let list=D.notes.length?D.notes.map(n=>
+    `<div class="card note">
+      <div style="display:flex;gap:8px">
+        <div class="t" style="flex:1">${esc(n.text)}</div>
+        <button class="del" aria-label="delete" style="align-self:flex-start" onclick="delN('${n.id}')">×</button>
+      </div>
+      <div class="at">${new Date(n.at).toLocaleString("en-IN",{day:"numeric",month:"short",hour:"numeric",minute:"2-digit"})}</div>
+    </div>`).join("")
+  :`<div class="empty">Nothing noted yet.</div>`;
+  return `<h2>Notes</h2><div class="sub">Anything else — ideas, reminders, field observations.</div>
+  <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:14px">
+    <textarea id="nt" placeholder="Write it down before it slips"></textarea>
+    <button class="btn" onclick="addN()">Save note</button>
+  </div>${list}`;
+}
+function addN(){const v=document.getElementById("nt").value.trim();if(!v)return;D.notes.unshift({id:uid(),text:v,at:new Date().toISOString()});save();render();}
+function delN(id){D.notes=D.notes.filter(n=>n.id!==id);save();render();}
+
+/* ---------- render & boot ---------- */
+function render(){
+  header();navbar();
+  const v={today:viewToday,leads:viewLeads,projects:viewProjects,money:viewMoney,goals:viewGoals,notes:viewNotes}[tab];
+  document.getElementById("main").innerHTML=v();
+}
+async function boot(){
+  const {data:{session}}=await sb.auth.getSession();
+  if(session&&session.user){
+    user=session.user;
+    document.getElementById("login").style.display="none";
+    document.getElementById("app").style.display="block";
+    await pull();
+    render();
+  }else{
+    document.getElementById("login").style.display="block";
+    document.getElementById("app").style.display="none";
+  }
+}
+sb.auth.onAuthStateChange((_e,session)=>{if(session&&!user)boot();});
+boot();
+
+if("serviceWorker" in navigator){navigator.serviceWorker.register("sw.js").catch(()=>{});}
+</script>
+</body>
+</html>
